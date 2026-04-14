@@ -70,6 +70,14 @@ npx wrangler d1 create blog
 npm run db:migrate:remote
 ```
 
+如果你线上报错：
+
+```text
+D1_ERROR: no such table: posts
+```
+
+说明当前绑定的 D1 数据库还没有跑迁移。先执行上面的远端迁移，再重新部署或刷新页面。
+
 迁移文件在：
 
 - `migrations/0001_init.sql`
