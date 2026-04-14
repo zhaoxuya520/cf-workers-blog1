@@ -111,7 +111,9 @@
     });
     if (!response.ok) {
       window.location.href = "/admin/login.html";
+      return;
     }
+    document.body.classList.add("admin-ready");
   }
 
   function switchPage(pageName) {
@@ -692,6 +694,7 @@
 
   bindEvents();
   bootstrap().catch((error) => {
+    document.body.classList.add("admin-ready");
     setStatus(error.message || "加载后台失败。", "error");
   });
 })();
