@@ -1580,7 +1580,8 @@ a{color:inherit}
 }
 
 .admin-login-title{
-  max-width:10ch;
+  max-width:none;
+  word-break:keep-all;
 }
 
 .admin-login-glow{

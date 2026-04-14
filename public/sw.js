@@ -1,4 +1,4 @@
-const VERSION = "v4";
+const VERSION = "v5";
 const STATIC_CACHE = `blog-static-${VERSION}`;
 const RUNTIME_CACHE = `blog-runtime-${VERSION}`;
 const OFFLINE_URL = "/offline.html";
