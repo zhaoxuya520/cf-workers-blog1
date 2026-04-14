@@ -2,6 +2,9 @@
   const state = {
     posts: [],
     navLinks: [],
+    aiTools: [],
+    socialLinks: [],
+    currentPage: "overview",
     originalSlug: "",
     slugEdited: false,
   };
@@ -10,15 +13,24 @@
     status: document.getElementById("adminStatus"),
     refreshButton: document.getElementById("refreshButton"),
     logoutButton: document.getElementById("logoutButton"),
+    pageNav: document.getElementById("pageNav"),
+    pages: Array.from(document.querySelectorAll(".admin-page")),
+    overviewStats: document.getElementById("overviewStats"),
     siteConfigForm: document.getElementById("siteConfigForm"),
     blogTitle: document.getElementById("blogTitle"),
     blogDescription: document.getElementById("blogDescription"),
+    profileForm: document.getElementById("profileForm"),
     authorName: document.getElementById("authorName"),
+    slogan: document.getElementById("slogan"),
     githubUrl: document.getElementById("githubUrl"),
     email: document.getElementById("email"),
     profileBio: document.getElementById("profileBio"),
+    socialLinksList: document.getElementById("socialLinksList"),
+    addSocialLinkButton: document.getElementById("addSocialLinkButton"),
     addNavButton: document.getElementById("addNavButton"),
     navList: document.getElementById("navList"),
+    addAiButton: document.getElementById("addAiButton"),
+    aiList: document.getElementById("aiList"),
     postList: document.getElementById("postList"),
     newPostButton: document.getElementById("newPostButton"),
     postForm: document.getElementById("postForm"),
@@ -99,32 +111,125 @@
     });
     if (!response.ok) {
       window.location.href = "/admin/login.html";
-      return;
     }
+  }
+
+  function switchPage(pageName) {
+    state.currentPage = pageName;
+
+    els.pages.forEach((page) => {
+      page.classList.toggle("admin-page--active", page.dataset.page === pageName);
+    });
+
+    els.pageNav?.querySelectorAll(".admin-post-item").forEach((button) => {
+      button.classList.toggle("is-active", button.dataset.pageTarget === pageName);
+    });
+  }
+
+  function renderOverview() {
+    if (!els.overviewStats) return;
+    const cards = [
+      { title: "文章", value: `${state.posts.length} 篇`, desc: "已发布和草稿内容" },
+      { title: "导航", value: `${state.navLinks.length} 项`, desc: "前台顶部入口" },
+      { title: "AI工具", value: `${state.aiTools.length} 项`, desc: "AI 工具页卡片" },
+      { title: "社交链接", value: `${state.socialLinks.length} 项`, desc: "作者对外展示链接" },
+    ];
+
+    els.overviewStats.innerHTML = cards
+      .map(
+        (card) => `<article class="admin-nav-item">
+  <div class="admin-panel-head">
+    <div>
+      <h3 class="admin-panel-title">${escapeHtml(card.title)}</h3>
+      <p class="admin-panel-desc">${escapeHtml(card.desc)}</p>
+    </div>
+    <strong class="admin-post-item-title">${escapeHtml(card.value)}</strong>
+  </div>
+</article>`
+      )
+      .join("");
   }
 
   function readSiteConfigForm() {
     return {
       blogTitle: els.blogTitle.value.trim(),
       blogDescription: els.blogDescription.value.trim(),
-      authorName: els.authorName.value.trim(),
-      githubUrl: els.githubUrl.value.trim(),
-      email: els.email.value.trim(),
-      profileBio: els.profileBio.value.trim(),
     };
   }
 
   function fillSiteConfigForm(config) {
     els.blogTitle.value = config.blogTitle || "";
     els.blogDescription.value = config.blogDescription || "";
+  }
+
+  function renderSocialLinks() {
+    if (!els.socialLinksList) return;
+
+    if (!state.socialLinks.length) {
+      els.socialLinksList.innerHTML = `<div class="admin-empty">还没有社交链接，点上面的“新增社交链接”开始添加。</div>`;
+      return;
+    }
+
+    els.socialLinksList.innerHTML = state.socialLinks
+      .map(
+        (item) => `<article class="admin-nav-item" data-id="${escapeHtml(item.id)}">
+  <div class="admin-two-col">
+    <label class="admin-field">
+      <span class="admin-label">平台名</span>
+      <input data-field="name" type="text" value="${escapeHtml(item.name)}" />
+    </label>
+    <label class="admin-field">
+      <span class="admin-label">URL</span>
+      <input data-field="url" type="url" value="${escapeHtml(item.url)}" />
+    </label>
+  </div>
+  <div class="admin-inline-actions">
+    <button class="btn admin-danger" data-action="delete-social" type="button">删除</button>
+  </div>
+</article>`
+      )
+      .join("");
+  }
+
+  function fillProfileForm(config) {
     els.authorName.value = config.authorName || "";
+    els.slogan.value = config.slogan || "";
     els.githubUrl.value = config.githubUrl || "";
     els.email.value = config.email || "";
     els.profileBio.value = config.profileBio || "";
+    state.socialLinks = Array.isArray(config.socialLinks) ? config.socialLinks.map((item) => ({ ...item })) : [];
+    renderSocialLinks();
+  }
+
+  function readProfileForm() {
+    const socialLinks = Array.from(els.socialLinksList?.querySelectorAll(".admin-nav-item") || []).map((item, index) => ({
+      id: item.dataset.id || `social-${index}`,
+      name: item.querySelector('[data-field="name"]').value.trim(),
+      url: item.querySelector('[data-field="url"]').value.trim(),
+    }));
+
+    return {
+      authorName: els.authorName.value.trim(),
+      slogan: els.slogan.value.trim(),
+      githubUrl: els.githubUrl.value.trim(),
+      email: els.email.value.trim(),
+      profileBio: els.profileBio.value.trim(),
+      socialLinks,
+    };
+  }
+
+  function addSocialLinkDraft() {
+    state.socialLinks.push({
+      id: `social-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      name: "",
+      url: "",
+    });
+    renderSocialLinks();
   }
 
   function renderNavList() {
     if (!els.navList) return;
+
     if (!state.navLinks.length) {
       els.navList.innerHTML = `<div class="admin-empty">还没有导航链接，点上面的“新增导航”开始配置。</div>`;
       return;
@@ -162,8 +267,170 @@
       .join("");
   }
 
+  function readNavCard(card) {
+    return {
+      label: card.querySelector('[data-field="label"]').value.trim(),
+      href: card.querySelector('[data-field="href"]').value.trim(),
+      sortOrder: Number(card.querySelector('[data-field="sortOrder"]').value || 0),
+      openInNewTab: !!card.querySelector('[data-field="openInNewTab"]').checked,
+    };
+  }
+
+  function addNavDraft() {
+    state.navLinks.push({
+      id: `draft-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      label: "",
+      href: "/",
+      sortOrder: state.navLinks.length * 10,
+      openInNewTab: false,
+    });
+    renderNavList();
+  }
+
+  async function saveNav(card) {
+    const id = card.dataset.id;
+    const payload = readNavCard(card);
+    const isDraft = id.startsWith("draft-");
+    const data = isDraft
+      ? await api("/api/admin/nav", { method: "POST", body: payload })
+      : await api(`/api/admin/nav/${encodeURIComponent(id)}`, { method: "PUT", body: payload });
+
+    state.navLinks = state.navLinks
+      .filter((item) => item.id !== id)
+      .concat(data.navLink)
+      .sort((a, b) => a.sortOrder - b.sortOrder);
+    renderNavList();
+    renderOverview();
+    setStatus("导航已保存。", "success");
+  }
+
+  async function deleteNav(card) {
+    const id = card.dataset.id;
+    if (!confirm("确定删除这个导航吗？")) return;
+
+    if (!id.startsWith("draft-")) {
+      await api(`/api/admin/nav/${encodeURIComponent(id)}`, { method: "DELETE" });
+    }
+
+    state.navLinks = state.navLinks.filter((item) => item.id !== id);
+    renderNavList();
+    renderOverview();
+    setStatus("导航已删除。", "success");
+  }
+
+  function renderAiList() {
+    if (!els.aiList) return;
+
+    if (!state.aiTools.length) {
+      els.aiList.innerHTML = `<div class="admin-empty">还没有 AI 工具，点上面的“新增工具”开始配置。</div>`;
+      return;
+    }
+
+    els.aiList.innerHTML = state.aiTools
+      .map((item) => {
+        const preview = item.imageUrl
+          ? `<img src="${escapeHtml(item.imageUrl)}" alt="" style="width:32px;height:32px;border-radius:10px;object-fit:cover;border:1px solid rgba(255,255,255,.12)">`
+          : `<div class="tool-icon-wrap no-img" aria-hidden="true"><span class="tool-fallback">${escapeHtml(item.name.slice(0, 2).toUpperCase())}</span></div>`;
+
+        return `<article class="admin-nav-item" data-id="${escapeHtml(item.id)}">
+  <div class="admin-panel-head">
+    <div class="admin-inline-actions">
+      ${preview}
+      <div>
+        <h3 class="admin-panel-title">${escapeHtml(item.name)}</h3>
+        <p class="admin-panel-desc">${escapeHtml(item.url)}</p>
+      </div>
+    </div>
+  </div>
+  <div class="admin-two-col">
+    <label class="admin-field">
+      <span class="admin-label">工具名</span>
+      <input data-field="name" type="text" value="${escapeHtml(item.name)}" />
+    </label>
+    <label class="admin-field">
+      <span class="admin-label">URL</span>
+      <input data-field="url" type="url" value="${escapeHtml(item.url)}" />
+    </label>
+  </div>
+  <div class="admin-two-col">
+    <label class="admin-field">
+      <span class="admin-label">图片 URL（选填）</span>
+      <input data-field="imageUrl" type="url" value="${escapeHtml(item.imageUrl || "")}" />
+    </label>
+    <label class="admin-field admin-field-small">
+      <span class="admin-label">排序</span>
+      <input data-field="sortOrder" type="number" value="${escapeHtml(item.sortOrder)}" />
+    </label>
+  </div>
+  <label class="admin-field">
+    <span class="admin-label">描述（选填）</span>
+    <textarea data-field="description" rows="3">${escapeHtml(item.description || "")}</textarea>
+  </label>
+  <div class="admin-inline-actions">
+    <button class="btn ghost" data-action="save-ai" type="button">保存</button>
+    <button class="btn admin-danger" data-action="delete-ai" type="button">删除</button>
+  </div>
+</article>`;
+      })
+      .join("");
+  }
+
+  function addAiDraft() {
+    state.aiTools.push({
+      id: `draft-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      name: "",
+      url: "",
+      imageUrl: "",
+      description: "",
+      sortOrder: state.aiTools.length * 10,
+    });
+    renderAiList();
+  }
+
+  function readAiCard(card) {
+    return {
+      name: card.querySelector('[data-field="name"]').value.trim(),
+      url: card.querySelector('[data-field="url"]').value.trim(),
+      imageUrl: card.querySelector('[data-field="imageUrl"]').value.trim(),
+      description: card.querySelector('[data-field="description"]').value.trim(),
+      sortOrder: Number(card.querySelector('[data-field="sortOrder"]').value || 0),
+    };
+  }
+
+  async function saveAi(card) {
+    const id = card.dataset.id;
+    const payload = readAiCard(card);
+    const isDraft = id.startsWith("draft-");
+    const data = isDraft
+      ? await api("/api/admin/ai", { method: "POST", body: payload })
+      : await api(`/api/admin/ai/${encodeURIComponent(id)}`, { method: "PUT", body: payload });
+
+    state.aiTools = state.aiTools
+      .filter((item) => item.id !== id)
+      .concat(data.aiTool)
+      .sort((a, b) => a.sortOrder - b.sortOrder);
+    renderAiList();
+    renderOverview();
+    setStatus("AI 工具已保存。", "success");
+  }
+
+  async function deleteAi(card) {
+    const id = card.dataset.id;
+    if (!confirm("确定删除这个 AI 工具吗？")) return;
+
+    if (!id.startsWith("draft-")) {
+      await api(`/api/admin/ai/${encodeURIComponent(id)}`, { method: "DELETE" });
+    }
+
+    state.aiTools = state.aiTools.filter((item) => item.id !== id);
+    renderAiList();
+    renderOverview();
+    setStatus("AI 工具已删除。", "success");
+  }
+
   function renderPostList() {
     if (!els.postList) return;
+
     if (!state.posts.length) {
       els.postList.innerHTML = `<div class="admin-empty">还没有文章，右上角可以直接新建。</div>`;
       return;
@@ -205,15 +472,20 @@
     els.postContent.value = post.contentMd || "";
     els.deletePostButton.disabled = false;
     renderPostList();
+    switchPage("posts");
   }
 
   async function loadBootstrap(selectedSlug = "") {
     const data = await api("/api/admin/bootstrap");
     state.posts = Array.isArray(data.posts) ? data.posts : [];
     state.navLinks = Array.isArray(data.navLinks) ? data.navLinks : [];
+    state.aiTools = Array.isArray(data.aiTools) ? data.aiTools : [];
     fillSiteConfigForm(data.siteConfig || {});
+    fillProfileForm(data.siteConfig || {});
     renderNavList();
+    renderAiList();
     renderPostList();
+    renderOverview();
 
     const nextSlug = selectedSlug || state.originalSlug;
     if (nextSlug && state.posts.some((post) => post.slug === nextSlug)) {
@@ -223,55 +495,6 @@
     }
 
     setStatus("后台数据已同步。", "success");
-  }
-
-  function addNavDraft() {
-    state.navLinks.push({
-      id: `draft-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      label: "",
-      href: "/",
-      sortOrder: state.navLinks.length * 10,
-      openInNewTab: false,
-    });
-    renderNavList();
-  }
-
-  function readNavCard(card) {
-    return {
-      label: card.querySelector('[data-field="label"]').value.trim(),
-      href: card.querySelector('[data-field="href"]').value.trim(),
-      sortOrder: Number(card.querySelector('[data-field="sortOrder"]').value || 0),
-      openInNewTab: !!card.querySelector('[data-field="openInNewTab"]').checked,
-    };
-  }
-
-  async function saveNav(card) {
-    const id = card.dataset.id;
-    const payload = readNavCard(card);
-    const isDraft = id.startsWith("draft-");
-    const data = isDraft
-      ? await api("/api/admin/nav", { method: "POST", body: payload })
-      : await api(`/api/admin/nav/${encodeURIComponent(id)}`, { method: "PUT", body: payload });
-
-    state.navLinks = state.navLinks
-      .filter((item) => item.id !== id)
-      .concat(data.navLink)
-      .sort((a, b) => a.sortOrder - b.sortOrder);
-    renderNavList();
-    setStatus("导航已保存。", "success");
-  }
-
-  async function deleteNav(card) {
-    const id = card.dataset.id;
-    if (!confirm("确定删除这个导航吗？")) return;
-
-    if (!id.startsWith("draft-")) {
-      await api(`/api/admin/nav/${encodeURIComponent(id)}`, { method: "DELETE" });
-    }
-
-    state.navLinks = state.navLinks.filter((item) => item.id !== id);
-    renderNavList();
-    setStatus("导航已删除。", "success");
   }
 
   async function savePost(event) {
@@ -298,6 +521,7 @@
       : await api("/api/posts", { method: "POST", body: payload });
 
     await loadBootstrap(data.slug || payload.slug || state.originalSlug);
+    renderOverview();
     setStatus(state.originalSlug ? "文章已更新。" : "文章已创建。", "success");
   }
 
@@ -306,6 +530,7 @@
     if (!confirm("确定删除这篇文章吗？")) return;
     await api(`/api/posts/${encodeURIComponent(state.originalSlug)}`, { method: "DELETE" });
     await loadBootstrap();
+    renderOverview();
     setStatus("文章已删除。", "success");
   }
 
@@ -324,6 +549,12 @@
   }
 
   function bindEvents() {
+    els.pageNav?.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-page-target]");
+      if (!button) return;
+      switchPage(button.dataset.pageTarget);
+    });
+
     els.refreshButton?.addEventListener("click", async () => {
       try {
         await loadBootstrap();
@@ -351,7 +582,32 @@
       }
     });
 
-    els.addNavButton?.addEventListener("click", addNavDraft);
+    els.profileForm?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      try {
+        const data = await api("/api/admin/profile", { method: "PUT", body: readProfileForm() });
+        fillProfileForm(data.profile || {});
+        renderOverview();
+        setStatus("个人资料已保存。", "success");
+      } catch (error) {
+        setStatus(error.message || "保存个人资料失败。", "error");
+      }
+    });
+
+    els.addSocialLinkButton?.addEventListener("click", addSocialLinkDraft);
+    els.socialLinksList?.addEventListener("click", (event) => {
+      const button = event.target.closest('[data-action="delete-social"]');
+      if (!button) return;
+      const card = button.closest(".admin-nav-item");
+      if (!card) return;
+      state.socialLinks = state.socialLinks.filter((item) => item.id !== card.dataset.id);
+      renderSocialLinks();
+    });
+
+    els.addNavButton?.addEventListener("click", () => {
+      addNavDraft();
+      switchPage("nav");
+    });
 
     els.navList?.addEventListener("click", async (event) => {
       const button = event.target.closest("button[data-action]");
@@ -366,7 +622,28 @@
       }
     });
 
-    els.newPostButton?.addEventListener("click", resetPostForm);
+    els.addAiButton?.addEventListener("click", () => {
+      addAiDraft();
+      switchPage("ai-tools");
+    });
+
+    els.aiList?.addEventListener("click", async (event) => {
+      const button = event.target.closest("button[data-action]");
+      if (!button) return;
+      const card = button.closest(".admin-nav-item");
+      if (!card) return;
+      try {
+        if (button.dataset.action === "save-ai") await saveAi(card);
+        if (button.dataset.action === "delete-ai") await deleteAi(card);
+      } catch (error) {
+        setStatus(error.message || "AI 工具操作失败。", "error");
+      }
+    });
+
+    els.newPostButton?.addEventListener("click", () => {
+      resetPostForm();
+      switchPage("posts");
+    });
 
     els.postList?.addEventListener("click", async (event) => {
       const button = event.target.closest(".admin-post-item");
@@ -410,6 +687,7 @@
   async function bootstrap() {
     await verifySession();
     await loadBootstrap();
+    switchPage(state.currentPage);
   }
 
   bindEvents();

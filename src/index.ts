@@ -29,6 +29,7 @@ export interface Env {
 type SiteState = {
   siteConfig: SiteConfig;
   navLinks: NavLink[];
+  aiTools: AiTool[];
 };
 
 type SiteConfig = {
@@ -36,8 +37,16 @@ type SiteConfig = {
   blogDescription: string;
   authorName: string;
   profileBio: string;
+  slogan: string;
   githubUrl: string;
   email: string;
+  socialLinks: SocialLink[];
+};
+
+type SocialLink = {
+  id: string;
+  name: string;
+  url: string;
 };
 
 type PostRow = {
@@ -70,6 +79,26 @@ type NavLink = {
   href: string;
   sortOrder: number;
   openInNewTab: boolean;
+};
+
+type AiToolRow = {
+  id: string;
+  name: string;
+  url: string;
+  image_url: string;
+  description: string;
+  sort_order: number;
+  created_at: number;
+  updated_at: number;
+};
+
+type AiTool = {
+  id: string;
+  name: string;
+  url: string;
+  imageUrl: string;
+  description: string;
+  sortOrder: number;
 };
 
 const md = new MarkdownIt({
@@ -339,17 +368,21 @@ function defaultSiteConfig(env: Env): SiteConfig {
     blogTitle: (env.BLOG_TITLE || "zhaoxu的个人博客").trim() || "zhaoxu的个人博客",
     blogDescription: (env.BLOG_DESCRIPTION || "一个玻璃拟态 · 科技风 · 年轻化的静态博客（GitHub Pages / Jekyll）").trim(),
     authorName: (env.AUTHOR_NAME || "zhaoxu").trim() || "zhaoxu",
+    slogan: "大家好我zhaoxu，欢迎交流。",
     profileBio: (env.PROFILE_BIO || "啥也不会的混子。").trim(),
     githubUrl: (env.GITHUB_URL || "https://github.com/zhaoxuya520").trim(),
     email: (env.EMAIL || "ww7517437@gmail.com").trim(),
+    socialLinks: [],
   };
 }
 
 function defaultNavLinks(): NavLink[] {
   return [
     { id: "nav-home-fallback", label: "首页", href: "/", sortOrder: 0, openInNewTab: false },
-    { id: "nav-about-fallback", label: "关于", href: "/about", sortOrder: 10, openInNewTab: false },
-    { id: "nav-ai-fallback", label: "AI工具", href: "/ai", sortOrder: 20, openInNewTab: false },
+    { id: "nav-ai-fallback", label: "AI工具", href: "/ai/", sortOrder: 10, openInNewTab: false },
+    { id: "nav-mail-fallback", label: "域名邮箱", href: "https://mail.linuxai.de", sortOrder: 20, openInNewTab: true },
+    { id: "nav-view-fallback", label: "导航页", href: "https://view.linuxai.de", sortOrder: 30, openInNewTab: true },
+    { id: "nav-about-fallback", label: "关于", href: "/about/", sortOrder: 40, openInNewTab: false },
   ];
 }
 
@@ -385,12 +418,35 @@ function toNavLink(row: NavLinkRow): NavLink {
   };
 }
 
+function toAiTool(row: AiToolRow): AiTool {
+  return {
+    id: row.id,
+    name: row.name,
+    url: row.url,
+    imageUrl: row.image_url,
+    description: row.description,
+    sortOrder: row.sort_order,
+  };
+}
+
+function normalizeSocialLinks(input: unknown): SocialLink[] {
+  if (!Array.isArray(input)) return [];
+  return input
+    .map((item, index) => {
+      const source = typeof item === "object" && item !== null ? (item as Record<string, unknown>) : {};
+      const id = String(source.id || `social-${index}-${nanoid(6)}`).trim();
+      const name = String(source.name || source.platform || "").trim();
+      const url = String(source.url || "").trim();
+      if (!name || !url || !isSafeHref(url)) return null;
+      return { id, name, url };
+    })
+    .filter((item): item is SocialLink => !!item);
+}
+
 function layout(state: SiteState, opts: { title?: string; description?: string; body: string; extraHead?: string }): string {
   const fullTitle = opts.title ? `${opts.title} · ${state.siteConfig.blogTitle}` : state.siteConfig.blogTitle;
   const desc = opts.description || state.siteConfig.blogDescription || "";
-  const isHome = !opts.title || opts.title === "首页";
-  const isAi = opts.title === "AI工具";
-  const isAbout = opts.title === "关于";
+  const navHtml = renderNavItems(state.navLinks, opts.title);
 
   return `<!doctype html>
 <html lang="zh-CN">
@@ -446,44 +502,7 @@ function layout(state: SiteState, opts: { title?: string; description?: string; 
       </a>
 
       <div class="navbar-center" id="site-nav">
-        <a href="/" class="nav-item${isHome ? " active" : ""}">
-          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-            <polyline points="9 22 9 12 15 12 15 22"></polyline>
-          </svg>
-          <span class="nav-text">文章</span>
-        </a>
-        <a href="/ai/" class="nav-item${isAi ? " active" : ""}">
-          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="3"></circle>
-            <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"></path>
-          </svg>
-          <span class="nav-text">AI工具</span>
-        </a>
-        <a href="https://mail.linuxai.de" target="_blank" rel="noopener noreferrer" class="nav-item nav-external">
-          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
-            <polyline points="22,6 12,13 2,6"></polyline>
-          </svg>
-          <span class="nav-text">域名邮箱</span>
-        </a>
-        <a href="https://view.linuxai.de" target="_blank" rel="noopener noreferrer" class="nav-item nav-external">
-          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="3" width="7" height="7"></rect>
-            <rect x="14" y="3" width="7" height="7"></rect>
-            <rect x="14" y="14" width="7" height="7"></rect>
-            <rect x="3" y="14" width="7" height="7"></rect>
-          </svg>
-          <span class="nav-text">导航页</span>
-        </a>
-        <a href="/about/" class="nav-item${isAbout ? " active" : ""}">
-          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10"></circle>
-            <line x1="12" y1="16" x2="12" y2="12"></line>
-            <line x1="12" y1="8" x2="12.01" y2="8"></line>
-          </svg>
-          <span class="nav-text">关于</span>
-        </a>
+        ${navHtml}
       </div>
 
       <div class="navbar-right">
@@ -519,44 +538,7 @@ function layout(state: SiteState, opts: { title?: string; description?: string; 
     </nav>
 
     <div class="mobile-menu" id="mobileMenu">
-      <a href="/" class="nav-item${isHome ? " active" : ""}">
-        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-          <polyline points="9 22 9 12 15 12 15 22"></polyline>
-        </svg>
-        <span class="nav-text">文章</span>
-      </a>
-      <a href="/ai/" class="nav-item${isAi ? " active" : ""}">
-        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="3"></circle>
-          <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"></path>
-        </svg>
-        <span class="nav-text">AI工具</span>
-      </a>
-      <a href="https://mail.linuxai.de" target="_blank" rel="noopener noreferrer" class="nav-item nav-external">
-        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
-          <polyline points="22,6 12,13 2,6"></polyline>
-        </svg>
-        <span class="nav-text">域名邮箱</span>
-      </a>
-      <a href="https://view.linuxai.de" target="_blank" rel="noopener noreferrer" class="nav-item nav-external">
-        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="3" y="3" width="7" height="7"></rect>
-          <rect x="14" y="3" width="7" height="7"></rect>
-          <rect x="14" y="14" width="7" height="7"></rect>
-          <rect x="3" y="14" width="7" height="7"></rect>
-        </svg>
-        <span class="nav-text">导航页</span>
-      </a>
-      <a href="/about/" class="nav-item${isAbout ? " active" : ""}">
-        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="10"></circle>
-          <line x1="12" y1="16" x2="12" y2="12"></line>
-          <line x1="12" y1="8" x2="12.01" y2="8"></line>
-        </svg>
-        <span class="nav-text">关于</span>
-      </a>
+      ${navHtml}
     </div>
   </header>
     <main class="container content">
@@ -659,9 +641,11 @@ async function getSiteConfig(env: Env): Promise<SiteConfig> {
       blogTitle: String(parsed.blogTitle ?? fallback.blogTitle).trim() || fallback.blogTitle,
       blogDescription: String(parsed.blogDescription ?? fallback.blogDescription).trim(),
       authorName: String(parsed.authorName ?? fallback.authorName).trim() || fallback.authorName,
+      slogan: String(parsed.slogan ?? fallback.slogan).trim(),
       profileBio: String(parsed.profileBio ?? fallback.profileBio).trim() || fallback.profileBio,
       githubUrl: String(parsed.githubUrl ?? fallback.githubUrl).trim(),
       email: String(parsed.email ?? fallback.email).trim(),
+      socialLinks: normalizeSocialLinks(parsed.socialLinks ?? fallback.socialLinks),
     };
   } catch {
     return fallback;
@@ -689,6 +673,55 @@ async function listNavLinks(env: Env): Promise<NavLink[]> {
   } catch {
     return defaultNavLinks();
   }
+}
+
+async function listAiTools(env: Env): Promise<AiTool[]> {
+  try {
+    const db = await dbOrThrow(env);
+    const result = await db
+      .prepare("SELECT id, name, url, image_url, description, sort_order, created_at, updated_at FROM ai_tools ORDER BY sort_order ASC, created_at ASC")
+      .all<AiToolRow>();
+    return (result.results || []).map(toAiTool);
+  } catch {
+    return [];
+  }
+}
+
+async function createAiTool(
+  env: Env,
+  input: { name: string; url: string; imageUrl: string; description: string; sortOrder: number }
+): Promise<AiTool> {
+  const db = await dbOrThrow(env);
+  const now = Date.now();
+  const id = nanoid(16);
+  await db
+    .prepare(
+      "INSERT INTO ai_tools (id, name, url, image_url, description, sort_order, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)"
+    )
+    .bind(id, input.name, input.url, input.imageUrl, input.description, input.sortOrder, now, now)
+    .run();
+  return { id, ...input };
+}
+
+async function updateAiTool(
+  env: Env,
+  id: string,
+  input: { name: string; url: string; imageUrl: string; description: string; sortOrder: number }
+): Promise<AiTool | null> {
+  const db = await dbOrThrow(env);
+  const exists = await db.prepare("SELECT id FROM ai_tools WHERE id = ?1 LIMIT 1").bind(id).first<{ id: string }>();
+  if (!exists) return null;
+  await db
+    .prepare("UPDATE ai_tools SET name = ?1, url = ?2, image_url = ?3, description = ?4, sort_order = ?5, updated_at = ?6 WHERE id = ?7")
+    .bind(input.name, input.url, input.imageUrl, input.description, input.sortOrder, Date.now(), id)
+    .run();
+  return { id, ...input };
+}
+
+async function deleteAiTool(env: Env, id: string): Promise<boolean> {
+  const db = await dbOrThrow(env);
+  const result = await db.prepare("DELETE FROM ai_tools WHERE id = ?1").bind(id).run();
+  return (result.meta?.changes || 0) > 0;
 }
 
 async function createNavLink(
@@ -744,10 +777,11 @@ async function deleteNavLink(env: Env, id: string): Promise<boolean> {
 }
 
 async function resolveSiteState(env: Env): Promise<SiteState> {
-  const [siteConfig, navLinks] = await Promise.all([getSiteConfig(env), listNavLinks(env)]);
+  const [siteConfig, navLinks, aiTools] = await Promise.all([getSiteConfig(env), listNavLinks(env), listAiTools(env)]);
   return {
     siteConfig,
     navLinks,
+    aiTools,
   };
 }
 
@@ -805,9 +839,11 @@ function normalizeSiteConfigInput(input: unknown, fallback: SiteConfig): SiteCon
     blogTitle: String(source.blogTitle ?? fallback.blogTitle).trim().slice(0, 120) || fallback.blogTitle,
     blogDescription: String(source.blogDescription ?? fallback.blogDescription).trim().slice(0, 280),
     authorName: String(source.authorName ?? fallback.authorName).trim().slice(0, 80) || fallback.authorName,
+    slogan: String(source.slogan ?? fallback.slogan).trim().slice(0, 120),
     profileBio: String(source.profileBio ?? fallback.profileBio).trim() || fallback.profileBio,
     githubUrl,
     email,
+    socialLinks: normalizeSocialLinks(source.socialLinks ?? fallback.socialLinks),
   };
 }
 
@@ -828,6 +864,72 @@ function normalizeNavLinkInput(input: unknown): { label: string; href: string; s
     sortOrder: Number.isNaN(sortOrder) ? 0 : sortOrder,
     openInNewTab,
   };
+}
+
+function normalizeAiToolInput(input: unknown): { name: string; url: string; imageUrl: string; description: string; sortOrder: number } {
+  const source = typeof input === "object" && input !== null ? (input as Record<string, unknown>) : {};
+  const name = String(source.name ?? "").trim().slice(0, 80);
+  const url = String(source.url ?? "").trim().slice(0, 320);
+  const imageUrl = String(source.imageUrl ?? "").trim().slice(0, 320);
+  const description = String(source.description ?? "").trim().slice(0, 180);
+  const sortOrder = Number.parseInt(String(source.sortOrder ?? 0), 10);
+
+  if (!name) throw new Error("工具名称不能为空");
+  if (!url) throw new Error("工具链接不能为空");
+  if (!/^https?:\/\//i.test(url)) throw new Error("工具链接需要是 http 或 https 地址");
+  if (imageUrl && !isSafeImageUrl(imageUrl)) throw new Error("图片链接格式不正确");
+
+  return {
+    name,
+    url,
+    imageUrl,
+    description,
+    sortOrder: Number.isNaN(sortOrder) ? 0 : sortOrder,
+  };
+}
+
+function iconSvg(kind: "home" | "ai" | "about" | "mail" | "grid" | "link"): string {
+  const icons = {
+    home: `<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>`,
+    ai: `<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"></path></svg>`,
+    about: `<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>`,
+    mail: `<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>`,
+    grid: `<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>`,
+    link: `<svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.07 0l2.83-2.83a5 5 0 1 0-7.07-7.07L11 4"></path><path d="M14 11a5 5 0 0 0-7.07 0L4.1 13.83a5 5 0 0 0 7.07 7.07L13 19"></path></svg>`,
+  };
+  return icons[kind];
+}
+
+function navKind(link: NavLink): "home" | "ai" | "about" | "mail" | "grid" | "link" {
+  const href = link.href.toLowerCase();
+  const label = link.label.toLowerCase();
+  if (href === "/" || label.includes("首页")) return "home";
+  if (href.startsWith("/ai") || label.includes("ai")) return "ai";
+  if (href.startsWith("/about") || label.includes("关于")) return "about";
+  if (href.includes("mail") || label.includes("邮箱")) return "mail";
+  if (href.includes("view") || label.includes("导航")) return "grid";
+  return "link";
+}
+
+function isActiveNav(link: NavLink, title?: string): boolean {
+  if (!title || title === "首页") return link.href === "/";
+  if (title === "AI工具") return link.href.startsWith("/ai");
+  if (title === "关于") return link.href.startsWith("/about");
+  return false;
+}
+
+function renderNavItems(navLinks: NavLink[], title?: string): string {
+  return navLinks
+    .map((link) => {
+      const kind = navKind(link);
+      const active = isActiveNav(link, title);
+      const external = link.openInNewTab ? " nav-external" : "";
+      return `<a href="${esc(link.href)}" class="nav-item${active ? " active" : ""}${external}"${navLinkAttrs(link)}>
+        ${iconSvg(kind)}
+        <span class="nav-text">${esc(link.label)}</span>
+      </a>`;
+    })
+    .join("\n");
 }
 
 function renderQuickLinks(navLinks: NavLink[]): string {
@@ -1009,6 +1111,10 @@ async function handleAbout(request: Request, env: Env): Promise<Response> {
     state.siteConfig.email
       ? `<a class="about-link icon-link" href="mailto:${esc(state.siteConfig.email)}"><span class="about-link-text">发送邮件</span></a>`
       : "",
+    ...state.siteConfig.socialLinks.map(
+      (item) =>
+        `<a class="about-link icon-link" href="${esc(item.url)}" target="_blank" rel="noopener noreferrer"><span class="about-link-text">${esc(item.name)}</span></a>`
+    ),
   ]
     .filter(Boolean)
     .join("");
@@ -1020,6 +1126,7 @@ async function handleAbout(request: Request, env: Env): Promise<Response> {
         <img class="about-avatar" src="/assets/avatar.jpg" alt="${esc(state.siteConfig.authorName)}的头像" />
       </div>
       <div class="about-name-pill">${esc(state.siteConfig.authorName)}</div>
+      ${state.siteConfig.slogan ? `<div class="about-name-pill">${esc(state.siteConfig.slogan)}</div>` : ""}
       <div class="about-links" aria-label="联系方式">${links}</div>
     </div>
   </aside>
@@ -1068,96 +1175,26 @@ async function handleAi(request: Request, env: Env): Promise<Response> {
 </header>
 
 <section class="tool-grid" aria-label="AI 工具列表">
-  <a class="tool-card" href="https://chat.deepseek.com/" target="_blank" rel="noopener noreferrer">
-    <span class="tool-icon-wrap" aria-hidden="true">
-      <img class="tool-icon" src="https://chat.deepseek.com/favicon.ico" alt="" loading="lazy"
-           onerror="this.style.display='none'; this.parentElement.classList.add('no-img');" />
-      <span class="tool-fallback">DS</span>
+${state.aiTools
+  .map((tool) => {
+    const fallback = esc(tool.name.slice(0, 2).toUpperCase());
+    const image = tool.imageUrl
+      ? `<img class="tool-icon" src="${esc(tool.imageUrl)}" alt="" loading="lazy"
+           onerror="this.style.display='none'; this.parentElement.classList.add('no-img');" />`
+      : "";
+    return `  <a class="tool-card" href="${esc(tool.url)}" target="_blank" rel="noopener noreferrer">
+    <span class="tool-icon-wrap${tool.imageUrl ? "" : " no-img"}" aria-hidden="true">
+      ${image}
+      <span class="tool-fallback">${fallback}</span>
     </span>
     <div class="tool-body">
-      <div class="tool-title">DeepSeek</div>
-      <div class="tool-desc">推理与代码能力强，适合做分析、总结与编程辅助。</div>
-      <div class="tool-meta">chat.deepseek.com</div>
+      <div class="tool-title">${esc(tool.name)}</div>
+      <div class="tool-desc">${esc(tool.description)}</div>
+      <div class="tool-meta">${esc(new URL(tool.url).host)}</div>
     </div>
-  </a>
-
-  <a class="tool-card" href="https://chatgpt.com/" target="_blank" rel="noopener noreferrer">
-    <span class="tool-icon-wrap" aria-hidden="true">
-      <img class="tool-icon" src="https://chatgpt.com/favicon.ico" alt="" loading="lazy"
-           onerror="this.style.display='none'; this.parentElement.classList.add('no-img');" />
-      <span class="tool-fallback">CG</span>
-    </span>
-    <div class="tool-body">
-      <div class="tool-title">ChatGPT</div>
-      <div class="tool-desc">通用对话与写作/代码助手，多场景综合表现稳定。</div>
-      <div class="tool-meta">chatgpt.com</div>
-    </div>
-  </a>
-
-  <a class="tool-card" href="https://claude.ai/" target="_blank" rel="noopener noreferrer">
-    <span class="tool-icon-wrap" aria-hidden="true">
-      <img class="tool-icon" src="https://claude.ai/favicon.ico" alt="" loading="lazy"
-           onerror="this.style.display='none'; this.parentElement.classList.add('no-img');" />
-      <span class="tool-fallback">CL</span>
-    </span>
-    <div class="tool-body">
-      <div class="tool-title">Claude</div>
-      <div class="tool-desc">长文本理解与写作很强，适合整理文档与方案输出。</div>
-      <div class="tool-meta">claude.ai</div>
-    </div>
-  </a>
-
-  <a class="tool-card" href="https://gemini.google.com/" target="_blank" rel="noopener noreferrer">
-    <span class="tool-icon-wrap" aria-hidden="true">
-      <img class="tool-icon" src="https://gemini.google.com/favicon.ico" alt="" loading="lazy"
-           onerror="this.style.display='none'; this.parentElement.classList.add('no-img');" />
-      <span class="tool-fallback">GE</span>
-    </span>
-    <div class="tool-body">
-      <div class="tool-title">Gemini</div>
-      <div class="tool-desc">Google 系列模型入口，适合多模态与日常信息处理。</div>
-      <div class="tool-meta">gemini.google.com</div>
-    </div>
-  </a>
-
-  <a class="tool-card" href="https://aistudio.google.com/" target="_blank" rel="noopener noreferrer">
-    <span class="tool-icon-wrap" aria-hidden="true">
-      <img class="tool-icon" src="https://aistudio.google.com/favicon.ico" alt="" loading="lazy"
-           onerror="this.style.display='none'; this.parentElement.classList.add('no-img');" />
-      <span class="tool-fallback">AS</span>
-    </span>
-    <div class="tool-body">
-      <div class="tool-title">Google AI Studio</div>
-      <div class="tool-desc">官方开发/调试入口，强调可免费试用 Gemini 3 Pro（按官方额度/政策为准）。</div>
-      <div class="tool-meta">aistudio.google.com</div>
-    </div>
-  </a>
-
-  <a class="tool-card" href="https://grok.com/" target="_blank" rel="noopener noreferrer">
-    <span class="tool-icon-wrap" aria-hidden="true">
-      <img class="tool-icon" src="https://grok.com/favicon.ico" alt="" loading="lazy"
-           onerror="this.style.display='none'; this.parentElement.classList.add('no-img');" />
-      <span class="tool-fallback">GX</span>
-    </span>
-    <div class="tool-body">
-      <div class="tool-title">Grok</div>
-      <div class="tool-desc">xAI 的对话模型入口，偏实时问答与内容探索。</div>
-      <div class="tool-meta">grok.com</div>
-    </div>
-  </a>
-
-  <a class="tool-card" href="https://linux.do/" target="_blank" rel="noopener noreferrer">
-    <span class="tool-icon-wrap" aria-hidden="true">
-      <img class="tool-icon" src="https://linux.do/favicon.ico" alt="" loading="lazy"
-           onerror="this.style.display='none'; this.parentElement.classList.add('no-img');" />
-      <span class="tool-fallback">LD</span>
-    </span>
-    <div class="tool-body">
-      <div class="tool-title">LinuxDo</div>
-      <div class="tool-desc">国内最大的 AI 工具社区，讨论工具、提示词、工作流与应用落地。</div>
-      <div class="tool-meta">linux.do</div>
-    </div>
-  </a>
+  </a>`;
+  })
+  .join("\n")}
 </section>`;
 
   return html(
@@ -1463,6 +1500,7 @@ async function handleApiAdminBootstrap(request: Request, env: Env): Promise<Resp
       ok: true,
       siteConfig: state.siteConfig,
       navLinks: state.navLinks,
+      aiTools: state.aiTools,
       posts: posts.map((post) => ({
         id: post.id,
         slug: post.slug,
@@ -1497,9 +1535,53 @@ async function handleApiAdminSiteConfig(request: Request, env: Env): Promise<Res
   try {
     const current = await getSiteConfig(env);
     const payload = await request.json();
-    const next = normalizeSiteConfigInput(payload, current);
+    const next = normalizeSiteConfigInput(
+      {
+        ...current,
+        blogTitle: (payload as Record<string, unknown>).blogTitle,
+        blogDescription: (payload as Record<string, unknown>).blogDescription,
+      },
+      current
+    );
     await saveSiteConfig(env, next);
     return json({ ok: true, siteConfig: next });
+  } catch (e) {
+    return badRequest(e instanceof Error ? e.message : String(e));
+  }
+}
+
+async function handleApiAdminProfile(request: Request, env: Env): Promise<Response> {
+  const denied = await ensureAdmin(request, env);
+  if (denied) return denied;
+
+  if (request.method === "GET") {
+    try {
+      const siteConfig = await getSiteConfig(env);
+      return json({ ok: true, profile: siteConfig });
+    } catch (e) {
+      return json({ ok: false, error: String(e) }, { status: 500 });
+    }
+  }
+
+  if (request.method !== "PUT") return json({ ok: false, error: "Method Not Allowed" }, { status: 405 });
+
+  try {
+    const current = await getSiteConfig(env);
+    const payload = (await request.json()) as Record<string, unknown>;
+    const next = normalizeSiteConfigInput(
+      {
+        ...current,
+        authorName: payload.authorName,
+        slogan: payload.slogan,
+        githubUrl: payload.githubUrl,
+        email: payload.email,
+        profileBio: payload.profileBio,
+        socialLinks: payload.socialLinks,
+      },
+      current
+    );
+    await saveSiteConfig(env, next);
+    return json({ ok: true, profile: next });
   } catch (e) {
     return badRequest(e instanceof Error ? e.message : String(e));
   }
@@ -1548,6 +1630,57 @@ async function handleApiAdminNavItem(request: Request, env: Env, id: string): Pr
   if (request.method === "DELETE") {
     try {
       const deleted = await deleteNavLink(env, id);
+      if (!deleted) return json({ ok: false, error: "Not Found" }, { status: 404 });
+      return json({ ok: true });
+    } catch (e) {
+      return json({ ok: false, error: String(e) }, { status: 500 });
+    }
+  }
+
+  return json({ ok: false, error: "Method Not Allowed" }, { status: 405 });
+}
+
+async function handleApiAdminAiCollection(request: Request, env: Env): Promise<Response> {
+  const denied = await ensureAdmin(request, env);
+  if (denied) return denied;
+
+  if (request.method === "GET") {
+    try {
+      return json({ ok: true, aiTools: await listAiTools(env) });
+    } catch (e) {
+      return json({ ok: false, error: String(e) }, { status: 500 });
+    }
+  }
+
+  if (request.method !== "POST") return json({ ok: false, error: "Method Not Allowed" }, { status: 405 });
+
+  try {
+    const aiTool = await createAiTool(env, normalizeAiToolInput(await request.json()));
+    return json({ ok: true, aiTool });
+  } catch (e) {
+    return badRequest(e instanceof Error ? e.message : String(e));
+  }
+}
+
+async function handleApiAdminAiItem(request: Request, env: Env, id: string): Promise<Response> {
+  const denied = await ensureAdmin(request, env);
+  if (denied) return denied;
+
+  if (!id) return json({ ok: false, error: "Not Found" }, { status: 404 });
+
+  if (request.method === "PUT") {
+    try {
+      const aiTool = await updateAiTool(env, id, normalizeAiToolInput(await request.json()));
+      if (!aiTool) return json({ ok: false, error: "Not Found" }, { status: 404 });
+      return json({ ok: true, aiTool });
+    } catch (e) {
+      return badRequest(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  if (request.method === "DELETE") {
+    try {
+      const deleted = await deleteAiTool(env, id);
       if (!deleted) return json({ ok: false, error: "Not Found" }, { status: 404 });
       return json({ ok: true });
     } catch (e) {
@@ -1637,11 +1770,18 @@ export default {
       response = await handleApiAdminLogout(request);
     } else if (pathname === "/api/admin/site-config") {
       response = await handleApiAdminSiteConfig(request, env);
+    } else if (pathname === "/api/admin/profile") {
+      response = await handleApiAdminProfile(request, env);
     } else if (pathname === "/api/admin/nav") {
       response = await handleApiAdminNavCollection(request, env);
+    } else if (pathname === "/api/admin/ai") {
+      response = await handleApiAdminAiCollection(request, env);
     } else if (pathname.startsWith("/api/admin/nav/")) {
       const id = pathname.slice("/api/admin/nav/".length);
       response = await handleApiAdminNavItem(request, env, id);
+    } else if (pathname.startsWith("/api/admin/ai/")) {
+      const id = pathname.slice("/api/admin/ai/".length);
+      response = await handleApiAdminAiItem(request, env, id);
     } else {
       response = await notFoundPage(env);
     }

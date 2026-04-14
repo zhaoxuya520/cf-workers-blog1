@@ -1510,9 +1510,29 @@ a{color:inherit}
 }
 
 .admin-nav-list,
-.admin-post-list{
+.admin-post-list,
+.admin-ai-list{
   display:grid;
   gap:12px;
+}
+
+.admin-sidebar{
+  position:sticky;
+  top:90px;
+  align-self:start;
+}
+
+#adminPages{
+  display:grid;
+  gap:18px;
+}
+
+.admin-page{
+  display:none;
+}
+
+.admin-page--active{
+  display:block;
 }
 
 .admin-nav-item,
