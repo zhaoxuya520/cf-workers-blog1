@@ -85,7 +85,7 @@
 
     if (!response.ok) {
       if (response.status === 401) {
-        window.location.href = "/admin";
+        window.location.href = "/admin/login.html";
       }
       throw new Error(data.error || `请求失败（${response.status}）`);
     }
@@ -98,7 +98,7 @@
       credentials: "same-origin",
     });
     if (!response.ok) {
-      window.location.href = "/admin";
+      window.location.href = "/admin/login.html";
       return;
     }
   }
@@ -320,7 +320,7 @@
 
   async function logout() {
     await api("/api/admin/logout", { method: "POST" });
-    window.location.href = "/admin";
+    window.location.href = "/admin/login.html";
   }
 
   function bindEvents() {

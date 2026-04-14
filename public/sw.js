@@ -1,4 +1,4 @@
-const VERSION = "v3";
+const VERSION = "v4";
 const STATIC_CACHE = `blog-static-${VERSION}`;
 const RUNTIME_CACHE = `blog-runtime-${VERSION}`;
 const OFFLINE_URL = "/offline.html";
@@ -47,6 +47,13 @@ function isAssetRequest(request) {
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   if (request.method !== "GET") return;
+  const url = new URL(request.url);
+
+  // Keep the admin entry fresh so auth redirects don't get stuck on a cached shell.
+  if (url.origin === self.location.origin && (url.pathname === "/admin" || url.pathname === "/admin/")) {
+    event.respondWith(fetch(request).catch(() => caches.match("/admin/login.html") || caches.match(OFFLINE_URL)));
+    return;
+  }
 
   if (request.mode === "navigate") {
     event.respondWith(
