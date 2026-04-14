@@ -1244,6 +1244,22 @@ async function handleAdmin(request: Request, env: Env): Promise<Response> {
   return response.status === 404 ? notFoundPage(env) : response;
 }
 
+async function handleAdminIndex(request: Request, env: Env): Promise<Response> {
+  if (!(await readAdminSession(request, env))) {
+    return Response.redirect(new URL("/admin/login.html", request.url).toString(), 302);
+  }
+  const response = await env.ASSETS.fetch(new Request(new URL("/admin/index.html", request.url).toString(), request));
+  return response.status === 404 ? notFoundPage(env) : response;
+}
+
+async function handleAdminLoginPage(request: Request, env: Env): Promise<Response> {
+  if (await readAdminSession(request, env)) {
+    return Response.redirect(new URL("/admin", request.url).toString(), 302);
+  }
+  const response = await env.ASSETS.fetch(new Request(new URL("/admin/login.html", request.url).toString(), request));
+  return response.status === 404 ? notFoundPage(env) : response;
+}
+
 async function handleApiAdminSession(request: Request, env: Env): Promise<Response> {
   if (request.method !== "GET") return json({ ok: false, error: "Method Not Allowed" }, { status: 405 });
   const session = await readAdminSession(request, env);
@@ -1553,6 +1569,14 @@ export default {
     const url = new URL(request.url);
     const pathname = normalizePath(url.pathname);
     const isApiRequest = pathname.startsWith("/api/");
+
+    if (pathname === "/admin/index.html") {
+      return handleAdminIndex(request, env);
+    }
+
+    if (pathname === "/admin/login.html") {
+      return handleAdminLoginPage(request, env);
+    }
 
     if (isApiRequest && request.method === "OPTIONS") {
       const cors = buildCorsHeaders(request, env);
