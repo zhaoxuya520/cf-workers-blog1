@@ -2,7 +2,7 @@
 
 本仓库已从 **GitHub Pages / Jekyll 静态博客** 重构为 **Cloudflare Workers 上的动态博客**：
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/zhaoxuya520/cf-workers-blog)
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/zhaoxuya520/cf-workers-blog1)
 
 - **文章存储**：Cloudflare D1（SQLite）
 - **服务端渲染**：Workers 运行时把 Markdown 渲染为 HTML（禁用 Markdown 内嵌 HTML，降低 XSS 风险）
@@ -93,6 +93,15 @@ npx wrangler secret put ADMIN_TOKEN
 npx wrangler secret put ADMIN_LOGIN_USERNAME
 npx wrangler secret put ADMIN_LOGIN_PASSWORD
 ```
+
+如果你是通过仓库顶部的 `Deploy to Cloudflare` 按钮初始化项目，本仓库已经提供了 `.dev.vars.example`。
+部署向导会提示填写：
+
+- `ADMIN_TOKEN`
+- `ADMIN_LOGIN_USERNAME`
+- `ADMIN_LOGIN_PASSWORD`
+
+如果项目已经创建好了，再补这些值时，需要到 Cloudflare Dashboard 的 `Variables and Secrets` 手动添加一次。
 
 部署完成后可直接访问：
 
