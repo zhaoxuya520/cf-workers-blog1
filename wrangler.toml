@@ -1,4 +1,4 @@
-name = "cf-workers-blog"
+name = "cf-workers-blog1"
 main = "src/index.ts"
 compatibility_date = "2026-04-13"
 
@@ -12,11 +12,11 @@ AUTHOR_NAME = "zhaoxu"
 PROFILE_BIO = "大家好我 zhaoxu，欢迎交流。"
 GITHUB_URL = "https://github.com/zhaoxuya520"
 EMAIL = "ww7517437@gmail.com"
-SITE_URL = "https://cf-workers-blog.workers.dev"
-CORS_ALLOW_ORIGINS = ""
+SITE_URL = "https://web.hahacc.com"
+CORS_ALLOW_ORIGINS = "https://web.hahacc.com"
 
 [[d1_databases]]
 binding = "DB"
 database_name = "blog"
 # 填你自己的 D1 数据库 ID；本仓库内用占位符 UUID 以便本地开发能启动
-database_id = "00000000-0000-0000-0000-000000000000"
+database_id = "dbd362cd-58e0-4f85-9ea4-26952f2ef255"
