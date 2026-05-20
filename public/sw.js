@@ -1,4 +1,4 @@
-const VERSION = "v5";
+const VERSION = "v6";
 const STATIC_CACHE = `blog-static-${VERSION}`;
 const RUNTIME_CACHE = `blog-runtime-${VERSION}`;
 const OFFLINE_URL = "/offline.html";
@@ -8,12 +8,14 @@ const STATIC_ASSETS = [
   "/assets/css/style.min.css",
   "/assets/js/main.js",
   "/assets/js/sw-register.js",
-  "/assets/js/admin.js",
-  "/assets/js/admin-login.js",
   "/assets/favicon.svg",
   "/assets/avatar.webp",
-  "/admin/login.html",
 ];
+
+// Admin paths MUST never be served from cache (auth-gated)
+function isAdminPath(pathname) {
+  return pathname === "/admin" || pathname.startsWith("/admin/") || pathname.startsWith("/api/admin");
+}
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -23,38 +25,31 @@ self.addEventListener("install", (event) => {
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches
-      .keys()
-      .then((keys) =>
-        Promise.all(
-          keys.map((key) => {
-            if (key !== STATIC_CACHE && key !== RUNTIME_CACHE) {
-              return caches.delete(key);
-            }
-            return Promise.resolve(false);
-          })
-        )
-      )
-      .then(() => self.clients.claim())
+    caches.keys().then((keys) =>
+      Promise.all(keys.map((key) => {
+        if (key !== STATIC_CACHE && key !== RUNTIME_CACHE) return caches.delete(key);
+        return Promise.resolve(false);
+      }))
+    ).then(() => self.clients.claim())
   );
 });
-
-function isAssetRequest(request) {
-  const url = new URL(request.url);
-  return url.origin === self.location.origin && (url.pathname.startsWith("/assets/") || url.pathname.startsWith("/admin/"));
-}
 
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   if (request.method !== "GET") return;
-  const url = new URL(request.url);
 
-  // Keep the admin entry fresh so auth redirects don't get stuck on a cached shell.
-  if (url.origin === self.location.origin && (url.pathname === "/admin" || url.pathname === "/admin/")) {
-    event.respondWith(fetch(request).catch(() => caches.match("/admin/login.html") || caches.match(OFFLINE_URL)));
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin) return;
+
+  // NEVER cache admin pages — always go to network
+  if (isAdminPath(url.pathname)) {
+    event.respondWith(
+      fetch(request).catch(() => caches.match(OFFLINE_URL))
+    );
     return;
   }
 
+  // Navigation requests (HTML pages) — network-first with offline fallback
   if (request.mode === "navigate") {
     event.respondWith(
       fetch(request)
@@ -71,7 +66,8 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  if (isAssetRequest(request)) {
+  // Static assets — cache-first with background revalidation
+  if (url.pathname.startsWith("/assets/")) {
     event.respondWith(
       caches.match(request).then((cached) => {
         const network = fetch(request)
@@ -84,5 +80,6 @@ self.addEventListener("fetch", (event) => {
         return cached || network;
       })
     );
+    return;
   }
 });

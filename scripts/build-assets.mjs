@@ -41,18 +41,23 @@ async function buildCss() {
   const purge = await new PurgeCSS().purge({
     content: contentFiles,
     css: [cssSource],
-    safelist: [
-      "active",
-      "visible",
-      "revealed",
-      "copied",
-      "is-active",
-      "has-cover",
-      "no-img",
-      "theme-transition-overlay",
-      "hljs",
-      /^hljs-/,
-    ],
+    safelist: {
+      standard: [
+        "active",
+        "visible",
+        "revealed",
+        "copied",
+        "is-active",
+        "has-cover",
+        "no-img",
+        "theme-transition-overlay",
+        "hljs",
+        /^hljs-/,
+      ],
+      greedy: [
+        /data-theme/,
+      ],
+    },
   });
 
   const code = Buffer.from(purge[0]?.css || (await readFile(cssSource)).toString("utf8"));

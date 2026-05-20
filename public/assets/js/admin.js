@@ -3,7 +3,9 @@
     posts: [],
     navLinks: [],
     aiTools: [],
+    comments: [],
     socialLinks: [],
+    homeConfig: { greeting: "", headline: "", bio: "", projects: [] },
     currentPage: "overview",
     originalSlug: "",
     slugEdited: false,
@@ -31,6 +33,7 @@
     navList: document.getElementById("navList"),
     addAiButton: document.getElementById("addAiButton"),
     aiList: document.getElementById("aiList"),
+    commentsList: document.getElementById("commentsList"),
     postList: document.getElementById("postList"),
     newPostButton: document.getElementById("newPostButton"),
     postForm: document.getElementById("postForm"),
@@ -42,6 +45,12 @@
     postContent: document.getElementById("postContent"),
     previewPostButton: document.getElementById("previewPostButton"),
     deletePostButton: document.getElementById("deletePostButton"),
+    homeConfigForm: document.getElementById("homeConfigForm"),
+    homeGreeting: document.getElementById("homeGreeting"),
+    homeHeadline: document.getElementById("homeHeadline"),
+    homeBio: document.getElementById("homeBio"),
+    homeProjectsList: document.getElementById("homeProjectsList"),
+    addHomeProject: document.getElementById("addHomeProject"),
   };
 
   function escapeHtml(value) {
@@ -110,8 +119,8 @@
       credentials: "same-origin",
     });
     if (!response.ok) {
-      window.location.href = "/admin/login.html";
-      return;
+      window.location.replace("/admin/login.html");
+      throw new Error("not authenticated");
     }
     document.body.classList.add("admin-ready");
   }
@@ -134,6 +143,7 @@
       { title: "文章", value: `${state.posts.length} 篇`, desc: "已发布和草稿内容" },
       { title: "导航", value: `${state.navLinks.length} 项`, desc: "前台顶部入口" },
       { title: "AI工具", value: `${state.aiTools.length} 项`, desc: "AI 工具页卡片" },
+      { title: "评论", value: `${state.comments.length} 条`, desc: "所有文章评论" },
       { title: "社交链接", value: `${state.socialLinks.length} 项`, desc: "作者对外展示链接" },
     ];
 
@@ -389,6 +399,49 @@
     renderAiList();
   }
 
+  function renderCommentsList() {
+    if (!els.commentsList) return;
+
+    if (!state.comments.length) {
+      els.commentsList.innerHTML = `<div class="admin-empty">暂无评论。</div>`;
+      return;
+    }
+
+    els.commentsList.innerHTML = state.comments
+      .map((item) => {
+        const time = item.createdAt ? new Date(item.createdAt).toLocaleString("zh-CN") : "";
+        const contentPreview = (item.content || "").length > 80
+          ? escapeHtml(item.content.slice(0, 80)) + "…"
+          : escapeHtml(item.content || "");
+        return `<article class="admin-nav-item" data-id="${escapeHtml(item.id)}">
+  <div class="admin-panel-head">
+    <div>
+      <h3 class="admin-panel-title">${escapeHtml(item.author || "匿名")}</h3>
+      <p class="admin-panel-desc">${contentPreview}</p>
+    </div>
+  </div>
+  <div class="admin-nav-row">
+    <span class="admin-post-item-meta">📄 ${escapeHtml(item.postSlug || "")}</span>
+    <span class="admin-post-item-meta">🕒 ${escapeHtml(time)}</span>
+    <div class="admin-inline-actions">
+      <button class="btn admin-danger" data-action="delete-comment" type="button">删除</button>
+    </div>
+  </div>
+</article>`;
+      })
+      .join("");
+  }
+
+  async function deleteComment(card) {
+    const id = card.dataset.id;
+    if (!confirm("确定删除这条评论吗？")) return;
+    await api(`/api/admin/comments/${encodeURIComponent(id)}`, { method: "DELETE" });
+    state.comments = state.comments.filter((item) => item.id !== id);
+    renderCommentsList();
+    renderOverview();
+    setStatus("评论已删除。", "success");
+  }
+
   function readAiCard(card) {
     return {
       name: card.querySelector('[data-field="name"]').value.trim(),
@@ -478,14 +531,21 @@
   }
 
   async function loadBootstrap(selectedSlug = "") {
-    const data = await api("/api/admin/bootstrap");
+    const [data, commentsData, homeData] = await Promise.all([
+      api("/api/admin/bootstrap"),
+      api("/api/admin/comments").catch(() => ({ comments: [] })),
+      api("/api/admin/home-config").catch(() => ({ homeConfig: null })),
+    ]);
     state.posts = Array.isArray(data.posts) ? data.posts : [];
     state.navLinks = Array.isArray(data.navLinks) ? data.navLinks : [];
     state.aiTools = Array.isArray(data.aiTools) ? data.aiTools : [];
+    state.comments = Array.isArray(commentsData.comments) ? commentsData.comments : [];
     fillSiteConfigForm(data.siteConfig || {});
     fillProfileForm(data.siteConfig || {});
+    if (homeData.homeConfig) fillHomeConfig(homeData.homeConfig);
     renderNavList();
     renderAiList();
+    renderCommentsList();
     renderPostList();
     renderOverview();
 
@@ -642,6 +702,18 @@
       }
     });
 
+    els.commentsList?.addEventListener("click", async (event) => {
+      const button = event.target.closest('[data-action="delete-comment"]');
+      if (!button) return;
+      const card = button.closest(".admin-nav-item");
+      if (!card) return;
+      try {
+        await deleteComment(card);
+      } catch (error) {
+        setStatus(error.message || "删除评论失败。", "error");
+      }
+    });
+
     els.newPostButton?.addEventListener("click", () => {
       resetPostForm();
       switchPage("posts");
@@ -684,6 +756,73 @@
     });
 
     els.previewPostButton?.addEventListener("click", previewCurrentPost);
+
+    // 首页配置
+    els.addHomeProject?.addEventListener("click", () => {
+      state.homeConfig.projects.push({ icon: "📦", title: "", desc: "", url: "" });
+      renderHomeProjects();
+    });
+
+    els.homeProjectsList?.addEventListener("click", (event) => {
+      const btn = event.target.closest('[data-action="delete-home-project"]');
+      if (!btn) return;
+      const idx = Number(btn.dataset.idx);
+      state.homeConfig.projects.splice(idx, 1);
+      renderHomeProjects();
+    });
+
+    els.homeConfigForm?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      try {
+        const projects = Array.from(els.homeProjectsList?.querySelectorAll(".admin-nav-item") || []).map((item) => ({
+          icon: item.querySelector('[data-field="icon"]').value.trim() || "📦",
+          title: item.querySelector('[data-field="title"]').value.trim(),
+          desc: item.querySelector('[data-field="desc"]').value.trim(),
+          url: item.querySelector('[data-field="url"]').value.trim(),
+        })).filter((p) => p.title);
+
+        const payload = {
+          greeting: els.homeGreeting.value.trim(),
+          headline: els.homeHeadline.value.trim(),
+          bio: els.homeBio.value.trim(),
+          projects,
+        };
+
+        const data = await api("/api/admin/home-config", { method: "PUT", body: payload });
+        state.homeConfig = data.homeConfig || payload;
+        fillHomeConfig(state.homeConfig);
+        setStatus("首页配置已保存。", "success");
+      } catch (error) {
+        setStatus(error.message || "保存首页配置失败。", "error");
+      }
+    });
+  }
+
+  function fillHomeConfig(config) {
+    if (els.homeGreeting) els.homeGreeting.value = config.greeting || "";
+    if (els.homeHeadline) els.homeHeadline.value = config.headline || "";
+    if (els.homeBio) els.homeBio.value = config.bio || "";
+    state.homeConfig = config;
+    renderHomeProjects();
+  }
+
+  function renderHomeProjects() {
+    if (!els.homeProjectsList) return;
+    if (!state.homeConfig.projects.length) {
+      els.homeProjectsList.innerHTML = `<div class="admin-empty">还没有项目卡片，点上面的"+ 项目卡片"添加。</div>`;
+      return;
+    }
+    els.homeProjectsList.innerHTML = state.homeConfig.projects.map((p, idx) => `<article class="admin-nav-item">
+  <div class="admin-two-col">
+    <label class="admin-field admin-field-small"><span class="admin-label">图标</span><input data-field="icon" type="text" value="${escapeHtml(p.icon)}" maxlength="4"/></label>
+    <label class="admin-field"><span class="admin-label">标题</span><input data-field="title" type="text" value="${escapeHtml(p.title)}" maxlength="60"/></label>
+  </div>
+  <div class="admin-two-col">
+    <label class="admin-field"><span class="admin-label">描述</span><input data-field="desc" type="text" value="${escapeHtml(p.desc)}" maxlength="120"/></label>
+    <label class="admin-field"><span class="admin-label">URL</span><input data-field="url" type="url" value="${escapeHtml(p.url)}"/></label>
+  </div>
+  <div class="admin-inline-actions"><button class="btn admin-danger" data-action="delete-home-project" data-idx="${idx}" type="button">删除</button></div>
+</article>`).join("");
   }
 
   async function bootstrap() {

@@ -13,8 +13,7 @@ CREATE INDEX IF NOT EXISTS idx_ai_tools_sort_order ON ai_tools(sort_order ASC, c
 
 INSERT OR IGNORE INTO nav_links (id, label, href, sort_order, open_in_new_tab, created_at, updated_at)
 VALUES
-  ('nav-mail', '域名邮箱', 'https://mail.linuxai.de', 30, 1, unixepoch() * 1000, unixepoch() * 1000),
-  ('nav-view', '导航页', 'https://view.linuxai.de', 40, 1, unixepoch() * 1000, unixepoch() * 1000);
+  ('nav-mail', '域名邮箱', 'https://mail.linuxai.de', 30, 1, unixepoch() * 1000, unixepoch() * 1000);
 
 INSERT OR IGNORE INTO ai_tools (id, name, url, image_url, description, sort_order, created_at, updated_at)
 VALUES

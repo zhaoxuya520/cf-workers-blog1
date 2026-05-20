@@ -7,13 +7,14 @@ assets = { directory = "./public", binding = "ASSETS" }
 
 [vars]
 BLOG_TITLE = "zhaoxu的个人博客"
-BLOG_DESCRIPTION = "Cloudflare Workers + D1 动态博客"
+BLOG_DESCRIPTION = "记录技术、安全、折腾的日常"
 AUTHOR_NAME = "zhaoxu"
 PROFILE_BIO = "大家好我 zhaoxu，欢迎交流。"
 GITHUB_URL = "https://github.com/zhaoxuya520"
 EMAIL = "ww7517437@gmail.com"
-SITE_URL = "https://web.hahacc.com"
-CORS_ALLOW_ORIGINS = "https://web.hahacc.com"
+SITE_URL = "https://blog.hahacc.com"
+CORS_ALLOW_ORIGINS = "https://blog.hahacc.com"
+SITE_CREATED_AT = "2025-01-01"
 
 [[d1_databases]]
 binding = "DB"

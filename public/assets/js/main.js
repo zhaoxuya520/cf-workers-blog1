@@ -190,12 +190,15 @@
     setOpen(false);
   }
 
-  // Index search filter
+  // ========== 搜索：跨页搜索 + 本地过滤 ==========
   const navSearch = document.getElementById("navSearch");
+  const postsSearch = document.getElementById("postsSearch");
   const cards = Array.from(document.querySelectorAll(".post-card"));
-  if (!cards.length) return;
+  const tagChips = Array.from(document.querySelectorAll(".tag-chip"));
+  const postsEmpty = document.getElementById("postsEmpty");
 
   let query = "";
+  let activeTag = "";
 
   const normalize = (s) => (s || "").toString().trim().toLowerCase();
 
@@ -203,46 +206,73 @@
     const title = card.getAttribute("data-title") || "";
     const excerpt = card.getAttribute("data-excerpt") || "";
     const tags = normalize(card.getAttribute("data-tags")).split(",").filter(Boolean);
-
     const q = normalize(query);
-    return !q || title.includes(q) || excerpt.includes(q) || tags.some((t) => t.includes(q));
+    const queryOk = !q || title.includes(q) || excerpt.includes(q) || tags.some((t) => t.includes(q));
+    const tagOk = !activeTag || tags.includes(activeTag);
+    return queryOk && tagOk;
   }
 
   function render() {
+    if (!cards.length) return;
     let visible = 0;
     for (const card of cards) {
       const show = matches(card);
       card.hidden = !show;
       if (show) visible++;
     }
-    document.body.dataset.filtered = visible === 0 ? "empty" : "ok";
+    if (postsEmpty) postsEmpty.hidden = visible !== 0;
   }
 
+  // 标签筛选
+  tagChips.forEach((chip) => {
+    chip.addEventListener("click", () => {
+      tagChips.forEach((c) => c.classList.remove("is-active"));
+      chip.classList.add("is-active");
+      activeTag = chip.dataset.tag || "";
+      render();
+    });
+  });
+
+  // 顶部 navSearch
   if (navSearch) {
     navSearch.addEventListener("input", (e) => {
       query = e.target.value;
-      render();
+      // 当前页面有卡片时即时过滤；否则等回车
+      if (cards.length) render();
     });
     navSearch.addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
         e.preventDefault();
-        const grid = document.querySelector(".grid");
-        if (grid) {
-          grid.scrollIntoView({ behavior: "smooth" });
+        const v = navSearch.value.trim();
+        // 跳转到 /posts?q=xxx（除非已经在文章页）
+        if (!cards.length && v) {
+          window.location.href = "/posts?q=" + encodeURIComponent(v);
+        } else if (cards.length) {
+          const grid = document.querySelector(".posts-grid");
+          if (grid) grid.scrollIntoView({ behavior: "smooth" });
         }
       }
     });
   }
 
-  // Support deep link filters: /?q=xxx
-  const params = new URLSearchParams(window.location.search);
-  const q = params.get("q");
-  if (typeof q === "string" && q.trim() && navSearch) {
-    navSearch.value = q;
-    query = q;
+  // 文章页内的搜索框
+  if (postsSearch) {
+    postsSearch.addEventListener("input", (e) => {
+      query = e.target.value;
+      if (navSearch) navSearch.value = query;
+      render();
+    });
   }
 
-  render();
+  // Deep link: /posts?q=xxx
+  const params = new URLSearchParams(window.location.search);
+  const q = params.get("q");
+  if (typeof q === "string" && q.trim()) {
+    query = q;
+    if (navSearch) navSearch.value = q;
+    if (postsSearch) postsSearch.value = q;
+    render();
+  }
 })();
 
 // AI工具卡片动态入场动画 - defer 脚本执行时 DOM 已就绪
@@ -512,5 +542,93 @@ if (toolCards.length > 0) {
     if (e.key === 'Escape' && lightbox.classList.contains('active')) {
       closeLightbox();
     }
+  });
+})();
+
+
+// ========== Hero 内嵌时钟 ==========
+(function initHeroClock() {
+  const clock = document.getElementById('heroClock');
+  const msEl = document.getElementById('clockMs');
+  const infoEl = document.getElementById('clockInfo');
+  if (!clock) return;
+
+  const digits = {};
+  clock.querySelectorAll('.clock-digit').forEach(el => {
+    digits[el.dataset.unit] = { el, current: '0' };
+  });
+
+  // 计算站点运营天数（SITE_CREATED_AT = 2025-01-01）
+  const siteCreatedAt = new Date('2025-01-01');
+
+  function updateDigit(key, value) {
+    const d = digits[key];
+    if (!d || d.current === value) return;
+    d.current = value;
+    d.el.textContent = value;
+    d.el.classList.add('tick');
+    setTimeout(() => d.el.classList.remove('tick'), 150);
+  }
+
+  function tick() {
+    const now = new Date();
+    const h = String(now.getHours()).padStart(2, '0');
+    const m = String(now.getMinutes()).padStart(2, '0');
+    const s = String(now.getSeconds()).padStart(2, '0');
+    const ms = String(now.getMilliseconds()).padStart(3, '0');
+
+    updateDigit('h1', h[0]);
+    updateDigit('h2', h[1]);
+    updateDigit('m1', m[0]);
+    updateDigit('m2', m[1]);
+    updateDigit('s1', s[0]);
+    updateDigit('s2', s[1]);
+
+    if (msEl) msEl.textContent = ms;
+  }
+
+  function updateInfo() {
+    if (!infoEl) return;
+    const now = new Date();
+    const runDays = Math.floor((now.getTime() - siteCreatedAt.getTime()) / (1000 * 60 * 60 * 24));
+    const dateStr = `${now.getFullYear()}.${String(now.getMonth()+1).padStart(2,'0')}.${String(now.getDate()).padStart(2,'0')}`;
+    infoEl.textContent = `${dateStr} · Day ${runDays}`;
+  }
+
+  tick();
+  updateInfo();
+  setInterval(tick, 30);
+  setInterval(updateInfo, 60000);
+})();
+
+
+// ========== 点击切换名言 ==========
+(function initQuote() {
+  const el = document.getElementById('clockQuote');
+  if (!el) return;
+
+  const quotes = [
+    "每一秒都是新的开始 ✨",
+    "代码改变世界 🌍",
+    "保持好奇心 🔍",
+    "安全无小事 🔒",
+    "持续学习，持续进步 📈",
+    "把想法变成现实 💡",
+    "Hack the planet 🛰️",
+    "简洁是终极的复杂 ⚡",
+    "Done is better than perfect ✅",
+    "Stay hungry, stay foolish 🍎",
+    "Talk is cheap, show me the code 💻",
+    "你的时间有限，不要浪费在别人的生活里 ⏳",
+  ];
+
+  let lastIdx = -1;
+  el.addEventListener('click', () => {
+    let idx;
+    do { idx = Math.floor(Math.random() * quotes.length); } while (idx === lastIdx);
+    lastIdx = idx;
+    el.textContent = quotes[idx];
+    el.classList.add('flash');
+    setTimeout(() => el.classList.remove('flash'), 400);
   });
 })();
